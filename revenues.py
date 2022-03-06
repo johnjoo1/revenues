@@ -25,26 +25,8 @@ def check_recent_statements(df_i):
     '''
     return df_i.sort_values('start', ascending=False)['end'].iloc[0]>datetime.datetime(2021,9,1)
 
-def get_RevenueFromContractWithCustomerExcludingAssessedTax(cik_str):
-    r = requests.get(f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_str}/us-gaap/RevenueFromContractWithCustomerExcludingAssessedTax.json', headers=sec_headers)
-    data =r.json()
-    df_i = pd.DataFrame(data['units']['USD'])
-    df_i['start']=pd.to_datetime(df_i['start'])
-    df_i['end']=pd.to_datetime(df_i['end'])
-    return df_i
-
-def get_Revenues(cik_str):
-    r = requests.get(f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_str}/us-gaap/Revenues.json', headers=sec_headers)
-    # if r.status_code == 404:
-    #     r = requests.get(f'https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_str}/ifrs-full/Revenue.json', headers=sec_headers)
-    data =r.json()
-    df_i = pd.DataFrame(data['units']['USD'])
-    df_i['start']=pd.to_datetime(df_i['start'])
-    df_i['end']=pd.to_datetime(df_i['end'])
-    return df_i
-
 class Company:
-    def __init__(cik):
+    def __init__(self, cik):
         self.cik_str = self.full_cik(cik)
         self.data = self.get_companyfacts(self.cik_str)
 
@@ -55,23 +37,47 @@ class Company:
     def get_companyfacts(self,cik_str):
         r = requests.get(f'https://data.sec.gov/api/xbrl/companyfacts/CIK{cik_str}.json', headers=sec_headers)
         data = r.json()
-        return data
+        self.cik_int = data['cik']
+        self.name = data['entityName']
+        self.accounting =self.accounting_method()
+        self.concepts = data['facts'][self.accounting].keys()
+        self.data = data
+
+    def accounting_method(self):
+        keys = self.data['facts'].keys()
+        non_dei_keys = [x for x in keys if x !='dei']
+        if len(non_dei_keys) == 1:
+            return non_dei_keys[0]
+        else:
+            raise ValueError("more than one non-dei key.")
     
-def get_revenues(cik):
-    cik_str = full_cik(cik)
-    df_cf = get_companyfacts(cik_str)
-    try:
-        df_rev1 = get_RevenueFromContractWithCustomerExcludingAssessedTax(cik_str)
-    except ValueError:
-        df_rev1 = None
-    try:
-        df_rev2 = get_Revenues(cik_str)
-    except ValueError:
-        df_rev2=None
-    df_i = pd.concat([df_rev1, df_rev2])
-    df_i = df_i.sort_values(['end', 'start']).reset_index(drop=True)
-    df_i['span'] = df_i['end'] - df_i['start']
-    return df_i
+    def get_revenue_type(self, revenue_type):
+        currency = list(data['facts'][self.accounting][revenue_type]['units'].keys())[0]
+        if currency != 'USD':
+            raise ValueError("Currency is not USD.")
+        d = data['facts'][self.accounting][revenue_type][currency]
+        df = pd.DataFrame(d)
+        return df
+
+    def get_revenues(self):
+        data = self.data
+        try:
+            df1 = self.get_revenue_type('RevenueFromContractWithCustomerExcludingAssessedTax')
+        except ValueError:
+            df1 = None
+        try:
+            df2 = self.get_revenue_type('Revenues')
+        except ValueError:
+            df2 = None
+        df_i = pd.concat([df1, df2])
+        df_i['start']=pd.to_datetime(df_i['start'])
+        df_i['end']=pd.to_datetime(df_i['end'])
+        df_i = df_i.sort_values(['end', 'start']).reset_index(drop=True)
+        df_i['span'] = df_i['end'] - df_i['start']
+        return df_i
+        # Does df_i need to be an attribute? keep going to incorporate into Company class
+        # use the bulk download
+        # create some tests with the bulk download (static dataset) (can't hardocde stuff!)
 
 def find_10q_between_dates(df, start, end):
     row_10qs = df[df['form'] == '10-Q']
@@ -162,13 +168,14 @@ if __name__ == "__main__":
     cik_df['revenues'] =cik_df['revenues'].astype('object')
     for i, row in cik_df.iloc[:].iterrows():
         print(row['ticker'], i)
-        try:
-            # pdb.set_trace()
-            cik_df.at[i,'revenues'] = get_revs_df(row['cik']).to_dict(orient='records')
-        except ValueError:
-            print(i, row['ticker'], "could not get data")
-            pass
-        time.sleep(1)
+        company = Company(row['cik'])
+        # try:
+        #     # pdb.set_trace()
+        #     cik_df.at[i,'revenues'] = get_revs_df(row['cik']).to_dict(orient='records')
+        # except ValueError:
+        #     print(i, row['ticker'], "could not get data")
+        #     pass
+        # time.sleep(1)
 
 # I should use data.sec.gov/api/xbrl/companyfacts/ instead of companyconcepts. see https://www.sec.gov/edgar/sec-api-documentation
     # financial companies get revenue from 'Revenues', 'RevenuesNetOfInterestExpense'
