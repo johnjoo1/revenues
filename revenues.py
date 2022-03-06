@@ -43,7 +43,19 @@ def get_Revenues(cik_str):
     df_i['end']=pd.to_datetime(df_i['end'])
     return df_i
 
+class Company:
+    def __init__(cik):
+        self.cik_str = self.full_cik(cik)
+        self.data = self.get_companyfacts(self.cik_str)
 
+    def full_cik(self, cik_int):
+        cik_str = str(cik_int)
+        return cik_str.zfill(10)
+
+    def get_companyfacts(self,cik_str):
+        r = requests.get(f'https://data.sec.gov/api/xbrl/companyfacts/CIK{cik_str}.json', headers=sec_headers)
+        data = r.json()
+        return data
     
 def get_revenues(cik):
     cik_str = full_cik(cik)
