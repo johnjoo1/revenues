@@ -48,7 +48,7 @@ class Company:
                 self.accounting = None
                 return None
         else:
-            with open(f'bulk_download/{cik_str}.json') as f:
+            with open(f'bulk_download/CIK{cik_str}.json') as f:
                 data = json.load(f)
         self.data = data
         self.cik_int = data['cik']
@@ -196,15 +196,15 @@ class Company:
 
 
 if __name__ == "__main__":
-    # cik_df = get_tickers_cik()
-    # cik_df['revenues'] =None
-    # cik_df['revenues'] =cik_df['revenues'].astype('object')
-    # for i, row in cik_df.iloc[:].iterrows():
-    #     print(row['ticker'], i)
-    #     company = Company(row['cik'])
-    #     if company.accounting == 'us-gaap':
-    #         if company.accounting_currency == 'USD':
-    #             cik_df.at[i,'revenues'] = company.get_revs_df().to_dict(orient='records')
+    cik_df = get_tickers_cik()
+    cik_df['revenues'] =None
+    cik_df['revenues'] =cik_df['revenues'].astype('object')
+    for i, row in cik_df.iloc[:].iterrows():
+        print(row['ticker'], i)
+        company = Company(row['cik'])
+        if company.accounting == 'us-gaap':
+            if company.accounting_currency == 'USD':
+                cik_df.at[i,'revenues'] = company.get_revs_df().to_dict(orient='records')
 
         # try:
         #     # pdb.set_trace()
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     # cik = cik_df[cik_df['ticker']=='AVGO']['cik'].iloc[0]
     # Company(cik).get_revs_df()
 
-    bulk_download()
+    # bulk_download()
 
 
 # I should use data.sec.gov/api/xbrl/companyfacts/ instead of companyconcepts. see https://www.sec.gov/edgar/sec-api-documentation
